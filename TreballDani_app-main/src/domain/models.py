@@ -95,7 +95,7 @@ class Cursa(AmbUltimaActualitzacio, Base):
     id_race: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     nom_del_gran_premi: Mapped[str] = mapped_column(String(120), nullable=False)
     data: Mapped[date] = mapped_column(Date, nullable=False)
-    temporada: Mapped[int] = mapped_column(Integer, nullable=False)
+    temporada: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     id_track: Mapped[int] = mapped_column(
         ForeignKey("pista.id_track", ondelete="RESTRICT"),
         nullable=False,
@@ -139,10 +139,12 @@ class ResultatCursa(AmbUltimaActualitzacio, Base):
     id_driver: Mapped[int] = mapped_column(
         ForeignKey("conductor.id_driver", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     id_race: Mapped[int] = mapped_column(
         ForeignKey("cursa.id_race", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
 
     conductor: Mapped["Conductor"] = relationship(back_populates="resultats")

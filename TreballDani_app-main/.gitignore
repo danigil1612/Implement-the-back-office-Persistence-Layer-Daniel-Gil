@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+*.sqlite
+*.db
+f1_test.db
+notebooks/*.sqlite
+postgres_data/
+.venv/
+venv/
