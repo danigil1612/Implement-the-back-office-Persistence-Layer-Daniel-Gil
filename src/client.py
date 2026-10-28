@@ -13,6 +13,8 @@ from protocol import MAX_MESSAGE_BYTES, ProtocolError, decode_message, encode_me
 
 
 def _json_value(text: str) -> Any:
+    if text == "-":
+        text = sys.stdin.read()
     try:
         return json.loads(text)
     except json.JSONDecodeError as exc:
@@ -68,11 +70,11 @@ def main() -> int:
         command.add_argument("entity", choices=sorted(ENTITY_SCHEMAS))
         if operation in {"read", "update", "delete"}:
             command.add_argument(
-                "id", type=_json_value, help="JSON id or composite id object"
+                "id", type=_json_value, help="JSON id, or '-' to read from stdin"
             )
         if operation in {"create", "update"}:
             command.add_argument(
-                "data", type=_json_value, help="JSON object of entity fields"
+                "data", type=_json_value, help="JSON object, or '-' to read from stdin"
             )
         if operation == "list":
             command.add_argument("--filter-field")

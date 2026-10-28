@@ -47,17 +47,19 @@ In another terminal, with the same virtual environment and `PYTHONPATH=src`:
 
 ```powershell
 python -m client list driver
-python -m client create driver '{"name":"Alex","nationality":"ES","number":7}'
+'{"name":"Alex","nationality":"ES","number":7}' | python -m client create driver -
 python -m client read driver 1
-python -m client update driver 1 '{"name":"Alex Gil"}'
+'{"name":"Alex Gil"}' | python -m client update driver 1 -
 python -m client delete driver 1
 ```
 
-For a composite tyre-usage ID, pass a JSON object, for example
-`'{"result_id":1,"period":1}'`. The client prints the full JSON response and
-exits with status 1 on an error. Use `--host` and `--port` before the operation
-to connect to a different server. See `PROTOCOL.md` for filters, pagination,
-all entity fields, and error codes.
+The `-` argument reads JSON from standard input. This form works in Windows
+PowerShell 5.1, which can strip quotes from JSON passed directly as a native
+command argument. For a composite tyre-usage ID, pipe a JSON object such as
+`'{"result_id":1,"period":1}'` into `read tyre_usage -`. The client prints
+the full JSON response and exits with status 1 on an error. Use `--host` and
+`--port` before the operation to connect to a different server. See
+`PROTOCOL.md` for filters, pagination, all entity fields, and error codes.
 
 ## Tests
 
