@@ -89,7 +89,9 @@ class RepositoriPista(RepositoriBase[Pista]):
         return self.sessio.scalars(select(Pista).where(Pista.pais == pais)).all()
 
     def get_by_nom(self, text: str) -> Sequence[Pista]:
-        return self.sessio.scalars(select(Pista).where(Pista.nom.ilike(f"%{text}%"))).all()
+        return self.sessio.scalars(
+            select(Pista).where(Pista.nom.ilike(f"%{text}%"))
+        ).all()
 
 
 class RepositoriCursa(RepositoriBase[Cursa]):
@@ -97,7 +99,9 @@ class RepositoriCursa(RepositoriBase[Cursa]):
         super().__init__(sessio, Cursa)
 
     def get_by_temporada(self, temporada: int) -> Sequence[Cursa]:
-        return self.sessio.scalars(select(Cursa).where(Cursa.temporada == temporada)).all()
+        return self.sessio.scalars(
+            select(Cursa).where(Cursa.temporada == temporada)
+        ).all()
 
     def get_by_gran_premi(self, text: str) -> Sequence[Cursa]:
         return self.sessio.scalars(
@@ -181,6 +185,11 @@ class RepositoriResultatCursa(RepositoriBase[ResultatCursa]):
         return us_pneumatic
 
 
+class RepositoriResultatPneumatic(RepositoriBase[ResultatPneumatic]):
+    def __init__(self, sessio: SessioSQLAlchemy) -> None:
+        super().__init__(sessio, ResultatPneumatic)
+
+
 class UnitatDeTreball:
     def __init__(self, session_factory=SessionLocal) -> None:
         self.session_factory = session_factory
@@ -191,6 +200,7 @@ class UnitatDeTreball:
         self.curses: RepositoriCursa
         self.pneumatics: RepositoriPneumatic
         self.resultats: RepositoriResultatCursa
+        self.tyre_usages: RepositoriResultatPneumatic
 
     def __enter__(self) -> "UnitatDeTreball":
         self.session = self.session_factory()
@@ -200,6 +210,7 @@ class UnitatDeTreball:
         self.curses = RepositoriCursa(self.session)
         self.pneumatics = RepositoriPneumatic(self.session)
         self.resultats = RepositoriResultatCursa(self.session)
+        self.tyre_usages = RepositoriResultatPneumatic(self.session)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
@@ -231,3 +242,4 @@ PistaRepository = RepositoriPista
 CursaRepository = RepositoriCursa
 PneumaticRepository = RepositoriPneumatic
 ResultatCursaRepository = RepositoriResultatCursa
+ResultatPneumaticRepository = RepositoriResultatPneumatic

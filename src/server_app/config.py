@@ -1,4 +1,4 @@
-"""Configuració dels entorns de base de dades."""
+"""Server-only database environment configuration."""
 
 from __future__ import annotations
 
@@ -22,9 +22,7 @@ def _obtenir_url_bbdd() -> str:
         return os.getenv("DB_URL_TEST", "sqlite:///./f1_test.db")
 
     variable = (
-        "DB_URL_DEVELOPMENT"
-        if ENVIRONMENT == "development"
-        else "DB_URL_PRODUCTION"
+        "DB_URL_DEVELOPMENT" if ENVIRONMENT == "development" else "DB_URL_PRODUCTION"
     )
     url = os.getenv(variable)
 

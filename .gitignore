@@ -9,3 +9,4 @@ notebooks/*.sqlite
 postgres_data/
 .venv/
 venv/
+*.egg-info/

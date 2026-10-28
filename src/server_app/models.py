@@ -33,7 +33,9 @@ class AmbUltimaActualitzacio:
 class Conductor(AmbUltimaActualitzacio, Base):
     __tablename__ = "conductor"
 
-    id_driver: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id_driver: Mapped[int] = mapped_column(
+        Integer, primary_key=True, autoincrement=True
+    )
     nom: Mapped[str] = mapped_column(String(100), nullable=False)
     nacionalitat: Mapped[str] = mapped_column(String(60), nullable=False)
     numero: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
@@ -108,7 +110,9 @@ class Cursa(AmbUltimaActualitzacio, Base):
     )
 
     def __repr__(self) -> str:
-        return f"Cursa(id_race={self.id_race!r}, gran_premi={self.nom_del_gran_premi!r})"
+        return (
+            f"Cursa(id_race={self.id_race!r}, gran_premi={self.nom_del_gran_premi!r})"
+        )
 
 
 class Pneumatic(AmbUltimaActualitzacio, Base):
@@ -132,7 +136,9 @@ class ResultatCursa(AmbUltimaActualitzacio, Base):
         UniqueConstraint("id_driver", "id_race", name="uq_resultat_conductor_cursa"),
     )
 
-    id_result: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id_result: Mapped[int] = mapped_column(
+        Integer, primary_key=True, autoincrement=True
+    )
     posicio_final: Mapped[int] = mapped_column(Integer, nullable=False)
     punts: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     temps_total: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
@@ -155,7 +161,10 @@ class ResultatCursa(AmbUltimaActualitzacio, Base):
     )
 
     def __repr__(self) -> str:
-        return f"ResultatCursa(id_result={self.id_result!r}, posicio={self.posicio_final!r})"
+        return (
+            "ResultatCursa("
+            f"id_result={self.id_result!r}, posicio={self.posicio_final!r})"
+        )
 
 
 class ResultatPneumatic(AmbUltimaActualitzacio, Base):
@@ -179,5 +188,6 @@ class ResultatPneumatic(AmbUltimaActualitzacio, Base):
     def __repr__(self) -> str:
         return (
             "ResultatPneumatic("
-            f"id_result={self.id_result!r}, periode={self.periode!r}, id_tyre={self.id_tyre!r})"
+            f"id_result={self.id_result!r}, "
+            f"periode={self.periode!r}, id_tyre={self.id_tyre!r})"
         )

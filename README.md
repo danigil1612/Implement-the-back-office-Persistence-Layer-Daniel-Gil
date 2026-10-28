@@ -1,76 +1,70 @@
-# TreballDani_app
+# Formula 1 back-office
 
-Aplicació back-office de Fórmula 1 amb capa de persistència implementada amb SQLAlchemy ORM, patró Repository, Unit of Work i migracions amb Alembic.
+This project provides a command-line client and a blocking TCP server for the
+Formula 1 back-office persistence layer. The server owns the business service,
+repositories, SQLAlchemy models, and database. The client exchanges only JSON
+data through the shared protocol and never imports SQLAlchemy.
 
-## Domini
+## Structure
 
-El model representa dades bàsiques d'una temporada de F1:
+- `src/client.py`: command-line TCP client.
+- `src/protocol.py`: JSON framing and response helpers shared by both programs.
+- `src/domain/`: persistence-independent field schemas and validation.
+- `src/server_app/router.py`: request dispatch and error formatting.
+- `src/server_app/service.py`: CRUD and existing repository queries.
+- `src/server_app/models.py`, `repositories.py`, `db.py`, `config.py`:
+  server-only SQLAlchemy persistence.
+- `alembic/`: unchanged database schema migrations.
+- `tests/`: unit tests for validation, protocol, routing, and services.
+- `PROTOCOL.md`: complete wire format, operations, fields, and errors.
 
-- conductors;
-- cotxes;
-- pistes;
-- curses;
-- pneumàtics;
-- resultats de cursa;
-- ús de pneumàtics en cada resultat.
+## Database setup
 
-## Estructura principal
+Python 3.10 or newer is required. Install dependencies from `requirements.txt`.
+The default `test` environment uses SQLite at `./f1_test.db`. The existing
+`development` and `production` environments use PostgreSQL URLs from
+`DB_URL_DEVELOPMENT` and `DB_URL_PRODUCTION` respectively. Configuration can
+be placed in `.env` (see `.env.example`). Keep credentials out of Git.
 
-```text
-src/
-└── domain/
-    ├── config.py
-    ├── db.py
-    ├── models.py
-    └── repositories.py
-```
-
-`models.py` conté els models ORM. `repositories.py` conté els repositoris i la unitat de treball. `config.py` centralitza la configuració dels entorns de base de dades.
-
-## Entorns de base de dades
-
-La configuració es fa amb variables d'entorn:
-
-```env
-ENVIRONMENT=test
-DB_URL_TEST=sqlite:///./f1_test.db
-DB_URL_DEVELOPMENT=postgresql+psycopg://USER:PASSWORD@HOST:PORT/DBNAME
-DB_URL_PRODUCTION=postgresql+psycopg://USER:PASSWORD@HOST:PORT/DBNAME
-```
-
-Els entorns disponibles són `test`, `development` i `production`. Les URLs de `development` i `production` han de ser de PostgreSQL online i s'han de configurar amb variables d'entorn, sense pujar contrasenyes al repositori.
-
-## Migracions
-
-El projecte inclou dues migracions:
-
-1. `Initial schema creation`
-2. `Added last_update attribute`
-
-## Proves
-
-Les proves dels mètodes dels repositoris es troben a:
-
-```text
-notebooks/200_repositoris.ipynb
-```
-
-El notebook valida les operacions CRUD, les consultes específiques, la paginació i l'operació de domini per afegir pneumàtics a un resultat de cursa.
-
-
-## Execució ràpida
-
-```bash
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-cp .env.example .env
-ENVIRONMENT=test alembic upgrade head
-jupyter nbconvert --to notebook --execute notebooks/200_repositoris.ipynb --output notebooks/200_repositoris_executed.ipynb
+$env:ENVIRONMENT = "test"
+python -m alembic upgrade head
+$env:PYTHONPATH = "src"
 ```
 
-Per entregar, cal pujar la versió final a la branca `main` amb el commit:
+## Run the programs
 
-```bash
-git add .
-git commit -m "Implemented persistence layer"
-git push origin main
+In one terminal:
+
+```powershell
+python -m server_app.server --host 127.0.0.1 --port 5050
 ```
+
+In another terminal, with the same virtual environment and `PYTHONPATH=src`:
+
+```powershell
+python -m client list driver
+python -m client create driver '{"name":"Alex","nationality":"ES","number":7}'
+python -m client read driver 1
+python -m client update driver 1 '{"name":"Alex Gil"}'
+python -m client delete driver 1
+```
+
+For a composite tyre-usage ID, pass a JSON object, for example
+`'{"result_id":1,"period":1}'`. The client prints the full JSON response and
+exits with status 1 on an error. Use `--host` and `--port` before the operation
+to connect to a different server. See `PROTOCOL.md` for filters, pagination,
+all entity fields, and error codes.
+
+## Tests
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m unittest discover -s tests -v
+```
+
+The earlier repository notebook remains at `notebooks/200_repositoris.ipynb`
+and imports the server-side persistence package.

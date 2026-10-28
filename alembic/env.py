@@ -12,9 +12,9 @@ SRC = ARREL_PROJECTE / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from domain.config import DB_URL  # noqa: E402
-from domain.db import Base  # noqa: E402
-from domain import models  # noqa: F401,E402
+from server_app.config import DB_URL  # noqa: E402
+from server_app.db import Base  # noqa: E402
+from server_app import models  # noqa: F401,E402
 
 config = context.config
 config.set_main_option("sqlalchemy.url", DB_URL)
