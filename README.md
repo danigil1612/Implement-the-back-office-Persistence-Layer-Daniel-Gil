@@ -1,15 +1,18 @@
 # Formula 1 back-office
 
-This project provides an asyncio TCP client and a concurrent server for the
-Formula 1 back office. The server owns the business service, repositories,
-SQLAlchemy models, and database. The client exchanges JSON through the shared
-protocol. See [the architecture diagram](ARCHITECTURE.md) for connection
-handling and the impact of synchronous database operations.
+This project provides an asyncio client and a concurrent server for the
+Formula 1 back office. Both peers authenticate with certificates and exchange
+JSON over TLS. The server owns the business service, repositories, SQLAlchemy
+models, and database. The [architecture diagram](ARCHITECTURE.md) shows the
+TLS boundary and database access. [SECURITY.md](SECURITY.md) describes the
+handshake, certificate roles, and demonstration steps.
 
 ## Structure
 
 - `src/client.py`: command-line TCP client.
 - `src/protocol.py`: JSON framing and response helpers shared by both programs.
+- `src/tls_config.py`: certificate and trust settings for both programs.
+- `tools/generate_certificates.py`: lab CA, server and two client identities.
 - `src/domain/`: persistence-independent field schemas and validation.
 - `src/server_app/router.py`: request dispatch and error formatting.
 - `src/server_app/service.py`: CRUD and existing repository queries.
@@ -36,22 +39,33 @@ python -m alembic upgrade head
 $env:PYTHONPATH = "src"
 ```
 
-## Run the programs
+## Generate certificates and run the programs
+
+Use Python with TLS 1.3 support and OpenSSL 3 for certificate generation.
+Run this once from the repository root. The script creates a new `certs/`
+directory and refuses to overwrite an existing directory. Use `--openssl`
+with the full executable path if OpenSSL is outside your `PATH`.
+
+```powershell
+python tools/generate_certificates.py
+```
 
 In one terminal:
 
 ```powershell
-python -m server_app.server --host 127.0.0.1 --port 5050
+python -m server_app.server --ca certs/ca.pem --cert certs/server.pem --key certs/server.key
 ```
 
 In another terminal, with the same virtual environment and `PYTHONPATH=src`:
 
 ```powershell
-python -m client list driver
-'{"name":"Alex","nationality":"ES","number":7}' | python -m client create driver -
-python -m client read driver 1
-'{"name":"Alex Gil"}' | python -m client update driver 1 -
-python -m client delete driver 1
+$clientOne = @('--ca', 'certs/ca.pem', '--cert', 'certs/client-one.pem', '--key', 'certs/client-one.key')
+$clientTwo = @('--ca', 'certs/ca.pem', '--cert', 'certs/client-two.pem', '--key', 'certs/client-two.key')
+python -m client @clientOne list driver
+'{"name":"Alex","nationality":"ES","number":7}' | python -m client @clientOne create driver -
+python -m client @clientTwo read driver 1
+'{"name":"Alex Gil"}' | python -m client @clientTwo update driver 1 -
+python -m client @clientOne delete driver 1
 ```
 
 The `-` argument reads JSON from standard input. This form works in Windows
@@ -69,8 +83,10 @@ $env:PYTHONPATH = "src"
 python -m unittest discover -s tests -v
 ```
 
-The loopback tests keep one client connected while another receives a
-response, simulate a blocked database call, and check connection cleanup.
+The TLS loopback tests generate temporary certificates using `openssl`.
+Set `BACKOFFICE_OPENSSL` to its executable path if necessary. The tests
+exercise both valid identities concurrently and reject missing or untrusted
+client certificates and an incorrect server identity.
 
 The earlier repository notebook remains at `notebooks/200_repositoris.ipynb`
 and imports the server-side persistence package.

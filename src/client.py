@@ -1,10 +1,11 @@
-"""Command-line asyncio client with no persistence imports."""
+"""Command-line asyncio client with mutual TLS authentication."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
 import json
+import ssl
 import sys
 from typing import Any
 
@@ -17,6 +18,7 @@ from protocol import (
     encode_message,
     read_frame,
 )
+from tls_config import HANDSHAKE_TIMEOUT, add_tls_arguments, create_context
 
 
 def _json_value(text: str) -> Any:
@@ -58,11 +60,15 @@ def build_request(arguments: argparse.Namespace) -> dict[str, Any]:
 
 
 async def send_request(
-    host: str, port: int, request: dict[str, Any]
+    host: str, port: int, request: dict[str, Any], tls: ssl.SSLContext
 ) -> dict[str, Any]:
     frame = encode_message(request)
     reader, writer = await asyncio.open_connection(
-        host, port, limit=MAX_MESSAGE_BYTES
+        host,
+        port,
+        limit=MAX_MESSAGE_BYTES,
+        ssl=tls,
+        ssl_handshake_timeout=HANDSHAKE_TIMEOUT,
     )
     try:
         writer.write(frame)
@@ -79,6 +85,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Formula 1 back-office client")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=5050)
+    add_tls_arguments(parser)
     commands = parser.add_subparsers(dest="operation", required=True)
     for operation in ("create", "read", "update", "delete", "list"):
         command = commands.add_parser(operation)
@@ -102,8 +109,13 @@ def main() -> int:
     ):
         parser.error("--filter-field and --filter-value must be used together")
     try:
+        tls = create_context(
+            arguments.ca, arguments.cert, arguments.key, server_side=False
+        )
         response = asyncio.run(
-            send_request(arguments.host, arguments.port, build_request(arguments))
+            send_request(
+                arguments.host, arguments.port, build_request(arguments), tls
+            )
         )
     except (OSError, ProtocolError) as exc:
         print(f"Connection error: {exc}", file=sys.stderr)

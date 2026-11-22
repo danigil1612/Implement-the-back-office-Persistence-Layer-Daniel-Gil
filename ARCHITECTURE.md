@@ -1,9 +1,12 @@
-# Practice 2 architecture
+# Practice 3 architecture
 
 ```mermaid
 flowchart LR
-    A[Async client A] <-->|JSON lines over TCP| L[AsyncIO listener]
-    B[Async client B] <-->|JSON lines over TCP| L
+    CA[Lab CA] -. signs .-> A[Client one certificate]
+    CA -. signs .-> B[Client two certificate]
+    CA -. signs .-> L[AsyncIO TLS listener and server certificate]
+    A <-->|JSON lines over mutual TLS| L
+    B <-->|JSON lines over mutual TLS| L
     L --> H1[Connection task A]
     L --> H2[Connection task B]
     H1 -->|asyncio.to_thread| R[Router in worker thread]
@@ -14,10 +17,11 @@ flowchart LR
     P --> D[(SQLite or PostgreSQL)]
 ```
 
-The listener and connection tasks run on one event loop. Each task reads and
-writes its own stream and processes its requests sequentially. `drain()` waits
-for write capacity while other tasks can continue. On end of stream, a socket
-error, or server shutdown, the connection's writer is closed.
+The listener verifies each client during the TLS handshake before starting its
+connection task. Each task reads and writes its own authenticated stream and
+processes its requests sequentially. `drain()` waits for write capacity while
+other tasks can continue. On end of stream, a socket error, or server shutdown,
+the connection's writer is closed.
 
 ## Synchronous database access
 

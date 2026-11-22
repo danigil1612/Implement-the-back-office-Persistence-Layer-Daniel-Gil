@@ -1,10 +1,11 @@
-"""Asynchronous TCP server with one request stream per client."""
+"""Asynchronous mutual TLS server with one request stream per client."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
 import logging
+import ssl
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -17,6 +18,7 @@ from protocol import (
     failure,
     read_frame,
 )
+from tls_config import HANDSHAKE_TIMEOUT, add_tls_arguments, create_context
 
 from .router import Router
 from .service import EntityService
@@ -28,7 +30,10 @@ async def serve_client(
     router: Router,
 ) -> None:
     address = writer.get_extra_info("peername")
-    logging.info("Client connected: %s", address)
+    certificate = writer.get_extra_info("peercert")
+    logging.info(
+        "Authenticated client %s with %r", address, certificate["subject"]
+    )
     try:
         while True:
             try:
@@ -62,8 +67,10 @@ async def serve_client(
 
 @asynccontextmanager
 async def running_server(
-    host: str, port: int, router: Router
+    host: str, port: int, router: Router, tls: ssl.SSLContext
 ) -> AsyncIterator[asyncio.Server]:
+    if tls.verify_mode != ssl.CERT_REQUIRED:
+        raise ValueError("The server must require client certificates")
     clients: dict[asyncio.Task[None], asyncio.StreamWriter] = {}
     stopping = False
 
@@ -78,7 +85,12 @@ async def running_server(
         task.add_done_callback(clients.pop)
 
     listener = await asyncio.start_server(
-        connect, host, port, limit=MAX_MESSAGE_BYTES
+        connect,
+        host,
+        port,
+        limit=MAX_MESSAGE_BYTES,
+        ssl=tls,
+        ssl_handshake_timeout=HANDSHAKE_TIMEOUT,
     )
     try:
         yield listener
@@ -98,21 +110,34 @@ async def running_server(
         await listener.wait_closed()
 
 
-async def serve(host: str, port: int, router: Router) -> None:
-    async with running_server(host, port, router) as listener:
+async def serve(
+    host: str, port: int, router: Router, tls: ssl.SSLContext
+) -> None:
+    async with running_server(host, port, router, tls) as listener:
         addresses = ", ".join(str(sock.getsockname()) for sock in listener.sockets)
-        logging.info("Listening on %s", addresses)
+        logging.info("Listening with mutual TLS on %s", addresses)
         await listener.serve_forever()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Formula 1 back-office server")
+    parser = argparse.ArgumentParser(
+        description="Formula 1 back-office server"
+    )
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=5050)
+    add_tls_arguments(parser)
     arguments = parser.parse_args()
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(levelname)s: %(message)s"
+    )
     try:
-        asyncio.run(serve(arguments.host, arguments.port, Router(EntityService())))
+        tls = create_context(
+            arguments.ca, arguments.cert, arguments.key, server_side=True
+        )
+        router = Router(EntityService())
+        asyncio.run(serve(arguments.host, arguments.port, router, tls))
+    except OSError as exc:
+        parser.exit(1, f"Server error: {exc}\n")
     except KeyboardInterrupt:
         logging.info("Server stopped")
 

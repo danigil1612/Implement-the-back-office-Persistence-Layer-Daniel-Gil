@@ -10,3 +10,6 @@ postgres_data/
 .venv/
 venv/
 *.egg-info/
+certs/
+*.pem
+*.key

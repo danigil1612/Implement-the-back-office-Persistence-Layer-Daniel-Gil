@@ -1,11 +1,16 @@
-# TCP protocol
+# JSON protocol over TLS
 
 The client and server exchange UTF-8 JSON objects, one per line. Each request
 receives exactly one response on the same connection. A connection may carry
 multiple requests. Messages are limited to 1,048,576 bytes before the newline.
 The asyncio server handles multiple connections concurrently. Responses on a
-single connection follow request order. The JSON format and operations are
-compatible with clients from version `v2.0.0`.
+single connection follow request order. Both peers authenticate with X.509
+certificates in a TLS 1.3 handshake before exchanging any JSON. The server
+requires a client certificate signed by its trusted CA. The client validates
+the server certificate and the destination hostname or IP address. Handshake
+failures terminate the connection at the TLS layer, before an application
+response is possible. See [SECURITY.md](SECURITY.md) for the trust model and
+session encryption.
 
 ## Requests
 
