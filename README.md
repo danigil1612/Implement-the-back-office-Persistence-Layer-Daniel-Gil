@@ -1,9 +1,10 @@
 # Formula 1 back-office
 
-This project provides a command-line client and a blocking TCP server for the
-Formula 1 back-office persistence layer. The server owns the business service,
-repositories, SQLAlchemy models, and database. The client exchanges only JSON
-data through the shared protocol and never imports SQLAlchemy.
+This project provides an asyncio TCP client and a concurrent server for the
+Formula 1 back office. The server owns the business service, repositories,
+SQLAlchemy models, and database. The client exchanges JSON through the shared
+protocol. See [the architecture diagram](ARCHITECTURE.md) for connection
+handling and the impact of synchronous database operations.
 
 ## Structure
 
@@ -15,7 +16,7 @@ data through the shared protocol and never imports SQLAlchemy.
 - `src/server_app/models.py`, `repositories.py`, `db.py`, `config.py`:
   server-only SQLAlchemy persistence.
 - `alembic/`: unchanged database schema migrations.
-- `tests/`: unit tests for validation, protocol, routing, and services.
+- `tests/`: unit tests and loopback tests for concurrent connections.
 - `PROTOCOL.md`: complete wire format, operations, fields, and errors.
 
 ## Database setup
@@ -67,6 +68,9 @@ the full JSON response and exits with status 1 on an error. Use `--host` and
 $env:PYTHONPATH = "src"
 python -m unittest discover -s tests -v
 ```
+
+The loopback tests keep one client connected while another receives a
+response, simulate a blocked database call, and check connection cleanup.
 
 The earlier repository notebook remains at `notebooks/200_repositoris.ipynb`
 and imports the server-side persistence package.

@@ -3,7 +3,9 @@
 The client and server exchange UTF-8 JSON objects, one per line. Each request
 receives exactly one response on the same connection. A connection may carry
 multiple requests. Messages are limited to 1,048,576 bytes before the newline.
-The server handles one connected client at a time with blocking sockets.
+The asyncio server handles multiple connections concurrently. Responses on a
+single connection follow request order. The JSON format and operations are
+compatible with clients from version `v2.0.0`.
 
 ## Requests
 

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+from contextlib import suppress
 from typing import Any
 
 MAX_MESSAGE_BYTES = 1_048_576
@@ -40,6 +42,22 @@ def decode_message(line: bytes) -> dict[str, Any]:
     if not isinstance(message, dict):
         raise ProtocolError("invalid_message", "Message must be a JSON object")
     return message
+
+
+async def read_frame(reader: asyncio.StreamReader) -> bytes:
+    """Read one frame with the stream's configured size limit."""
+    try:
+        return await reader.readline()
+    except ValueError as exc:
+        raise ProtocolError(
+            "message_too_large", "Message exceeds the size limit"
+        ) from exc
+
+
+async def close_stream(writer: asyncio.StreamWriter) -> None:
+    writer.close()
+    with suppress(OSError):
+        await writer.wait_closed()
 
 
 def success(data: Any) -> dict[str, Any]:

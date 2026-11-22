@@ -1,7 +1,7 @@
 [project]
 name = "treballdani-app"
-version = "2.0.0"
-description = "Formula 1 back-office TCP client and server"
+version = "2.1.0"
+description = "Formula 1 back-office asyncio TCP client and server"
 authors = [{ name = "Dani" }]
 readme = "README.md"
 requires-python = ">=3.10"

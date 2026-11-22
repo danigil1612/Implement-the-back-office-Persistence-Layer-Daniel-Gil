@@ -1,15 +1,22 @@
-"""Command-line TCP client with no persistence imports."""
+"""Command-line asyncio client with no persistence imports."""
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
-import socket
 import sys
 from typing import Any
 
 from domain.schemas import ENTITY_SCHEMAS
-from protocol import MAX_MESSAGE_BYTES, ProtocolError, decode_message, encode_message
+from protocol import (
+    MAX_MESSAGE_BYTES,
+    ProtocolError,
+    close_stream,
+    decode_message,
+    encode_message,
+    read_frame,
+)
 
 
 def _json_value(text: str) -> Any:
@@ -50,11 +57,19 @@ def build_request(arguments: argparse.Namespace) -> dict[str, Any]:
     return request
 
 
-def send_request(host: str, port: int, request: dict[str, Any]) -> dict[str, Any]:
-    with socket.create_connection((host, port)) as connection:
-        connection.sendall(encode_message(request))
-        with connection.makefile("rb") as incoming:
-            line = incoming.readline(MAX_MESSAGE_BYTES + 2)
+async def send_request(
+    host: str, port: int, request: dict[str, Any]
+) -> dict[str, Any]:
+    frame = encode_message(request)
+    reader, writer = await asyncio.open_connection(
+        host, port, limit=MAX_MESSAGE_BYTES
+    )
+    try:
+        writer.write(frame)
+        await writer.drain()
+        line = await read_frame(reader)
+    finally:
+        await close_stream(writer)
     if not line:
         raise ProtocolError("invalid_frame", "Server closed without a response")
     return decode_message(line)
@@ -87,8 +102,8 @@ def main() -> int:
     ):
         parser.error("--filter-field and --filter-value must be used together")
     try:
-        response = send_request(
-            arguments.host, arguments.port, build_request(arguments)
+        response = asyncio.run(
+            send_request(arguments.host, arguments.port, build_request(arguments))
         )
     except (OSError, ProtocolError) as exc:
         print(f"Connection error: {exc}", file=sys.stderr)

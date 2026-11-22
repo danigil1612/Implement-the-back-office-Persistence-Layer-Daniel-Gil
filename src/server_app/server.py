@@ -1,58 +1,108 @@
-"""Blocking, single-client-at-a-time TCP server."""
+"""Asynchronous TCP server with one request stream per client."""
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import logging
-import socket
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from protocol import (
     MAX_MESSAGE_BYTES,
     ProtocolError,
+    close_stream,
     decode_message,
     encode_message,
     failure,
+    read_frame,
 )
 
 from .router import Router
 from .service import EntityService
 
 
-def serve_client(connection: socket.socket, router: Router) -> None:
-    """Process one client's newline-delimited requests until it disconnects."""
-    with connection.makefile("rb") as incoming:
+async def serve_client(
+    reader: asyncio.StreamReader,
+    writer: asyncio.StreamWriter,
+    router: Router,
+) -> None:
+    address = writer.get_extra_info("peername")
+    logging.info("Client connected: %s", address)
+    try:
         while True:
-            line = incoming.readline(MAX_MESSAGE_BYTES + 2)
+            try:
+                line = await read_frame(reader)
+            except ProtocolError as exc:
+                writer.write(encode_message(failure(exc.code, str(exc))))
+                await writer.drain()
+                return
             if not line:
                 return
+
             try:
                 request = decode_message(line)
-                response = router.handle(request)
+                response = await asyncio.to_thread(router.handle, request)
+                frame = encode_message(response)
             except ProtocolError as exc:
-                response = failure(exc.code, str(exc))
-            try:
-                encoded_response = encode_message(response)
-            except ProtocolError as exc:
-                encoded_response = encode_message(failure(exc.code, str(exc)))
-            connection.sendall(encoded_response)
-            if len(line) > MAX_MESSAGE_BYTES + 1 or not line.endswith(b"\n"):
+                frame = encode_message(failure(exc.code, str(exc)))
+
+            writer.write(frame)
+            await writer.drain()
+            if not line.endswith(b"\n"):
                 return
+    except OSError as exc:
+        logging.debug("Client connection failed: %s: %s", address, exc)
+    except Exception:
+        logging.exception("Unexpected client failure: %s", address)
+    finally:
+        await close_stream(writer)
+        logging.info("Client disconnected: %s", address)
 
 
-def serve(host: str, port: int, router: Router) -> None:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
-        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        listener.bind((host, port))
-        listener.listen(1)
-        logging.info("Listening on %s:%s", host, port)
-        while True:
-            connection, address = listener.accept()
-            logging.info("Client connected: %s", address)
-            with connection:
-                try:
-                    serve_client(connection, router)
-                except OSError:
-                    logging.exception("Client connection failed")
+@asynccontextmanager
+async def running_server(
+    host: str, port: int, router: Router
+) -> AsyncIterator[asyncio.Server]:
+    clients: dict[asyncio.Task[None], asyncio.StreamWriter] = {}
+    stopping = False
+
+    def connect(
+        reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        if stopping:
+            writer.close()
+            return
+        task = asyncio.create_task(serve_client(reader, writer, router))
+        clients[task] = writer
+        task.add_done_callback(clients.pop)
+
+    listener = await asyncio.start_server(
+        connect, host, port, limit=MAX_MESSAGE_BYTES
+    )
+    try:
+        yield listener
+    finally:
+        stopping = True
+        listener.close()
+        active_clients = tuple(clients.items())
+        for task, writer in active_clients:
+            writer.close()
+            task.cancel()
+        await asyncio.gather(
+            *(task for task, _ in active_clients), return_exceptions=True
+        )
+        await asyncio.gather(
+            *(close_stream(writer) for _, writer in active_clients)
+        )
+        await listener.wait_closed()
+
+
+async def serve(host: str, port: int, router: Router) -> None:
+    async with running_server(host, port, router) as listener:
+        addresses = ", ".join(str(sock.getsockname()) for sock in listener.sockets)
+        logging.info("Listening on %s", addresses)
+        await listener.serve_forever()
 
 
 def main() -> None:
@@ -62,7 +112,7 @@ def main() -> None:
     arguments = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     try:
-        serve(arguments.host, arguments.port, Router(EntityService()))
+        asyncio.run(serve(arguments.host, arguments.port, Router(EntityService())))
     except KeyboardInterrupt:
         logging.info("Server stopped")
 
